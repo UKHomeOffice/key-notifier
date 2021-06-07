@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -32,7 +33,7 @@ func getSESSession() *ses.SES {
 	return ses.New(sess, aws.NewConfig().WithRegion("eu-west-1"))
 }
 
-func getTags(svc *iam.IAM, m *iam.AccessKeyMetadata) *string {
+func getTags(svc *iam.IAM, m *iam.AccessKeyMetadata) []*string {
 
 	input := &iam.ListUserTagsInput{
 		MaxItems: aws.Int64(1000),
@@ -55,12 +56,20 @@ func getTags(svc *iam.IAM, m *iam.AccessKeyMetadata) *string {
 		}
 	}
 
-	for _, tag := range result.Tags {
-		if *tag.Key != "email" {
-			continue
+	recipients := make([]*string, 0)
+
+	i := 1
+	for i < len(result.Tags)-1 {
+		for _, tag := range result.Tags {
+			if !strings.HasPrefix(*tag.Key, "email") {
+				continue
+			}
+			recipients = append(recipients, tag.Value)
+			i++
 		}
-		return tag.Value
+		return recipients
 	}
+
 	log.Println("no email found for user with expired key: ", *m.UserName)
 	return nil
 }
@@ -97,7 +106,7 @@ func staleKey(svc *iam.IAM, u *iam.User) (*iam.AccessKeyMetadata, *int) {
 	return nil, nil
 }
 
-func notify(k *iam.AccessKeyMetadata, email string, period *int) {
+func notify(k *iam.AccessKeyMetadata, recipients []*string, period *int) {
 
 	svc := getSESSession()
 
@@ -109,9 +118,7 @@ func notify(k *iam.AccessKeyMetadata, email string, period *int) {
 
 	input := &ses.SendEmailInput{
 		Destination: &ses.Destination{
-			ToAddresses: []*string{
-				aws.String(email),
-			},
+			ToAddresses: recipients,
 		},
 		Message: &ses.Message{
 			Body: &ses.Body{
@@ -150,9 +157,11 @@ func handle() {
 
 	for _, user := range result.Users {
 		if k, n := staleKey(svc, user); k != nil {
-			if email := getTags(svc, k); email != nil {
-				notify(k, *email, n)
-				log.Println("notified " + *k.UserName + " at " + *email + " re: stale access key " + *k.AccessKeyId + " created on: " + k.CreateDate.String())
+			if recipients := getTags(svc, k); recipients != nil {
+				notify(k, recipients, n)
+				for _, recipient := range recipients {
+					log.Printf("notified %v re: access key %v created for %v on %v \n", *recipient, *k.AccessKeyId, *k.UserName, k.CreateDate.String())
+				}
 			}
 		}
 	}
