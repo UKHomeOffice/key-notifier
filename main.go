@@ -124,9 +124,9 @@ func notify(k *iam.AccessKeyMetadata, recipients []*string, period *int) {
 			Body: &ses.Body{
 				Text: &ses.Content{
 					Charset: aws.String("UTF-8"),
-					Data: aws.String("Hi,\nAWS access key " + *k.AccessKeyId + " belonging to user " + *k.UserName +
+					Data: aws.String("Hi,\nAWS access key id " + *k.AccessKeyId + " belonging to user " + *k.UserName +
 						" was created over " + fmt.Sprint(*period) + " days ago.\nYou should consider rotating it. " +
-						"Please raise a ticket on the ACP Service Desk so that we can either rotate or add it to our ignore list.\n" +
+						"Please refer to docs.acp.homeoffice.gov.uk/how-to/security/aws-keys for further guidance.\n" +
 						"Thanks,\nACP Support Team"),
 				},
 			},
