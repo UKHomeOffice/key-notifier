@@ -14,3 +14,6 @@ steps:
   commands:
   - go build .
 
+- name: sonar-scan
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/sonar-scanner:v4.3.0
